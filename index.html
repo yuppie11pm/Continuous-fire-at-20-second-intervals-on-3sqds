@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>20 秒翼次射タイム計測ver.3.2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #000;
+    --text: #f2f2f2;
+    --muted: #8a8a8a;
+    --c1: #ff5d5d;
+    --c2: #3db8ff;
+    --c3: #ffd23f;
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { margin: 0; background: #000; color: var(--text); }
+  body {
+    font-family: "Hiragino Sans", "Noto Sans JP", system-ui, sans-serif;
+    min-height: 100vh;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .app {
+    zoom: 0.9;
+    max-width: 520px;
+    margin: 0 auto;
+    padding: 14px 24px 20px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .top { display: flex; align-items: stretch; justify-content: space-between; gap: 10px; }
+  .label { flex: 1; min-width: 0; font-size: 17px; font-weight: 700; line-height: 1.35; padding-top: 6px; display: flex; flex-direction: column; justify-content: space-between; }
+  .ver { font-size: 18px; line-height: 36px; color: #bbb; letter-spacing: .02em; }
+  .timebox { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+  .setting { display: flex; align-items: center; gap: 6px; }
+  .rings { font-size: 15px; font-weight: 700; margin-top: 8px; }
+  .flight { font-size: 20px; font-weight: 700; line-height: 1.2; display: flex; align-items: center; gap: 6px; }
+  .setting input {
+    width: 58px; height: 36px; padding: 0; text-align: center;
+    font: inherit; font-size: 22px; font-variant-numeric: tabular-nums;
+    color: var(--text); background: #111; border: 2px solid #777; border-radius: 10px;
+    -moz-appearance: textfield; appearance: textfield;
+  }
+  .setting input::-webkit-outer-spin-button, .setting input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .setting input:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+  .setting input:disabled { opacity: 1; color: #fff; -webkit-text-fill-color: #fff; border-color: #fff; font-weight: 700; }
+  button.step {
+    flex: none; width: 36px; height: 36px; padding: 0; border-radius: 50%;
+    font-size: 22px; line-height: 1; touch-action: manipulation;
+  }
+  .time {
+    font-family: "Barlow Condensed", "Helvetica Neue", system-ui, sans-serif;
+    font-weight: 700;
+    font-size: clamp(52px, 18vw, 100px);
+    flex: none;
+    line-height: 0.95;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+
+  .head { display: flex; align-items: center; gap: 14px; }
+  .watch { width: 76px; height: 76px; flex: none; }
+  .info { flex: 1; min-width: 0; }
+  .titlerow { display: flex; align-items: center; gap: 10px; }
+  .titlerow .title { flex: none; }
+  .memo {
+    flex: 1; min-width: 0; height: 34px; padding: 0 10px;
+    font: inherit; font-size: 16px; font-weight: 700; color: var(--text);
+    background: #111; border: 2px solid #777; border-radius: 10px;
+  }
+  .memo::placeholder { color: #666; font-weight: 400; }
+  .memo:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+  .title { font-size: 15px; font-weight: 700; }
+  .status { font-size: 13px; color: var(--muted); margin-top: 4px; }
+  .next { font-size: 17px; font-weight: 700; margin-top: 6px; padding: 0 12px; min-height: 40px; display: flex; align-items: center; width: fit-content; max-width: 100%; border: 2px solid currentColor; border-radius: 12px; }
+  .next:empty { visibility: hidden; }
+
+  .frames { display: flex; flex-direction: column; gap: 8px; }
+  .frame {
+    --c: var(--c1);
+    border: 3px solid var(--c);
+    border-radius: 16px;
+    padding: 8px 14px 10px;
+    opacity: 0.55;
+    transition: opacity .25s, box-shadow .25s;
+  }
+  .frame.b1 { --c: var(--c1); }
+  .frame.b2 { --c: var(--c2); }
+  .frame.b3 { --c: var(--c3); }
+  .frame.next-up { opacity: 1; box-shadow: 0 0 0 1px var(--c), 0 0 18px -2px var(--c); }
+  .frame.done { opacity: 1; }
+  .frame.flash { animation: flash 1.1s ease-out; }
+  @keyframes flash {
+    0%   { box-shadow: 0 0 0 4px var(--c), 0 0 36px 6px var(--c); opacity: 1; }
+    100% { box-shadow: 0 0 0 0 transparent; }
+  }
+
+  .frame.blink { animation: blink 1s ease-in-out infinite; }
+  @keyframes blink {
+    0%, 100% { opacity: .35; box-shadow: none; }
+    50% { opacity: 1; box-shadow: 0 0 0 2px var(--c), 0 0 26px 2px var(--c); }
+  }
+  .frame.strobe { animation: strobe .2s step-end infinite; }
+  @keyframes strobe {
+    0%   { opacity: 1; background: color-mix(in srgb, var(--c) 55%, transparent); box-shadow: 0 0 0 4px var(--c), 0 0 42px 10px var(--c); }
+    50%  { opacity: .6; background: transparent; box-shadow: none; }
+  }
+  body.paused .frame { animation-play-state: paused; }
+
+  .row { display: flex; justify-content: space-between; align-items: center; min-height: 32px; margin-bottom: 4px; }
+  .cd { flex: 1; text-align: center; color: var(--c); font-family: "Barlow Condensed", system-ui, sans-serif; font-weight: 700; font-size: 34px; line-height: 1; font-variant-numeric: tabular-nums; }
+  .name { color: var(--c); font-size: 24px; font-weight: 700; font-family: "Barlow Condensed", system-ui, sans-serif; }
+  .count { color: var(--c); font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+  .dots { display: grid; grid-template-columns: repeat(var(--n, 7), 1fr); justify-items: center; }
+  .dot {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 3px solid var(--c);
+    background: transparent;
+  }
+  .dot.on { background: var(--c); }
+  .dot.pop { animation: pop .4s ease-out; }
+  @keyframes pop { 0% { transform: scale(.6); } 60% { transform: scale(1.25); } 100% { transform: scale(1); } }
+
+  .controls { display: flex; gap: 10px; margin-top: 4px; }
+  button {
+    font: inherit;
+    font-size: 17px;
+    font-weight: 700;
+    padding: 15px 0;
+    border-radius: 14px;
+    border: 2px solid #555;
+    background: #111;
+    color: var(--text);
+    cursor: pointer;
+    flex: 1;
+  }
+  button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+  button:disabled { opacity: .35; cursor: default; }
+  #start { background: #f2f2f2; color: #000; border-color: #f2f2f2; }
+  #reset { flex: .6; }
+
+  .sound {
+    align-self: flex-end;
+    font-size: 13px;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+  }
+  .sound input { width: 18px; height: 18px; }
+  .soundrow { align-self: flex-end; display: flex; align-items: center; gap: 12px; }
+  button.mini { flex: none; font-size: 14px; padding: 8px 14px; border-radius: 10px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .frame.flash, .dot.pop { animation: none; }
+    .frame { transition: none; }
+  }
+
+  /* ===== 画面の切り替え（鐘リレー＋計算ツール） ===== */
+  html { height: 100%; }
+  body { height: 100%; min-height: 0; overflow: hidden; }
+  .scroller { position: relative; height: 100%; overflow-y: auto; scroll-snap-type: y mandatory; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+  .bellscreen { min-height: 100%; scroll-snap-align: start; }
+  .pager { position: fixed; right: 6px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 12px; z-index: 5; }
+  .pager button { flex: none; width: 9px; height: 9px; padding: 0; border-radius: 50%; border: 1.5px solid #fff; background: transparent; }
+  .pager button.on { background: #fff; }
+
+  /* ===== 計算ツール ===== */
+  .calc { --fg: #f2f2f2; --line: #fff; --dim: #777; height: 100%; scroll-snap-align: start; scroll-snap-stop: always; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 16px 36px 16px 16px; gap: 28px; color: var(--fg); background: #000; }
+  .calc h1 { margin: 0; font-size: 22px; font-weight: 600; text-align: center; line-height: 1.4; }
+  .calc h1 small { display: block; font-size: 16px; font-weight: 500; }
+  .calc .formula { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 10px; font-size: 22px; }
+  .calc .frac { display: inline-flex; flex-direction: column; align-items: center; gap: 4px; }
+  .calc .frac .bar { width: 100%; height: 2px; background: var(--fg); }
+  .calc .frac .fix { padding: 2px 0; min-width: 96px; text-align: center; }
+  .calc input { width: 104px; padding: 10px 8px; background: #000; color: var(--fg); border: 1.5px solid var(--line); border-radius: 8px; font-size: 16px; text-align: center; }
+  .calc input::placeholder { color: var(--dim); font-size: 13px; }
+  .calc input:focus { outline: 2px solid #888; outline-offset: 1px; }
+  .calc .tight { flex-wrap: nowrap; gap: 5px; font-size: 18px; }
+  .calc .tight input { width: 72px; padding: 8px 2px; }
+  .calc .tight input::placeholder { font-size: 11px; }
+  .calc .sm { font-size: 14px; }
+  .calc .par { font-size: 56px; font-weight: 200; line-height: 1; transform: scaleX(.7); }
+  .calc .ans { position: relative; width: min(100%, 340px); min-height: 96px; border: 1.5px solid var(--line); border-radius: 10px; padding: 30px 14px 12px; display: flex; align-items: flex-end; justify-content: flex-end; }
+  .calc .ans .lbl { position: absolute; top: 8px; left: 12px; font-size: 11px; color: #bbb; line-height: 1.3; }
+  .calc .ans .val { font-size: 30px; font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+<div class="pager" id="pager"></div>
+<div class="scroller" id="sc">
+<div class="screen bellscreen" id="s0">
+<div class="app">
+  <div class="top">
+    <div class="label"><div>20秒小隊<br>翼次射</div><div class="ver">ver.3.2</div></div>
+    <div class="timebox">
+      <div class="time" id="time">0:00.00</div>
+      <div class="flight setting">
+        <span>飛行秒時</span>
+        <button class="step" id="fMinus" type="button" aria-label="飛行秒時を1秒減らす">−</button>
+        <input id="flightSec" type="number" inputmode="numeric" min="10" max="55" step="1" value="35" aria-label="飛行秒時（秒）">
+        <button class="step" id="fPlus" type="button" aria-label="飛行秒時を1秒増やす">＋</button>
+        <span>秒</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="head">
+    <svg class="watch" viewBox="0 0 100 100" aria-label="アナログストップウォッチ">
+      <circle cx="50" cy="50" r="47" fill="#000" stroke="#777" stroke-width="3"/>
+      <g id="ticks" stroke="#bbb"></g>
+      <line id="minHand" x1="50" y1="50" x2="50" y2="26" stroke="#f2f2f2" stroke-width="3.5" stroke-linecap="round"/>
+      <line id="secHand" x1="50" y1="58" x2="50" y2="8" stroke="#ff5d5d" stroke-width="2" stroke-linecap="round"/>
+      <circle cx="50" cy="50" r="3.5" fill="#ff5d5d"/>
+    </svg>
+    <div class="info">
+      <div class="titlerow">
+        <div class="title">20秒各個射</div>
+        <input class="memo" id="memo" type="text" maxlength="20" placeholder="文字入力" enterkeyhint="done" aria-label="任意の文字入力">
+      </div>
+      <div class="status" id="status">待機中</div>
+      <div class="next" id="next"></div>
+      <div class="rings setting">
+        <span>発射弾数分隊</span>
+        <button class="step" id="pMinus" type="button" aria-label="発射弾数分隊を1発減らす">−</button>
+        <input id="perCount" type="number" inputmode="numeric" min="3" max="7" step="1" value="7" aria-label="発射弾数分隊（発）">
+        <button class="step" id="pPlus" type="button" aria-label="発射弾数分隊を1発増やす">＋</button>
+        <span>発</span>
+      </div>
+    </div>
+  </div>
+
+  <main class="frames" id="frames"></main>
+
+  <div class="controls">
+    <button id="start">開始</button>
+    <button id="pause" disabled>一時停止</button>
+    <button id="reset">リセット</button>
+  </div>
+
+  <div class="soundrow">
+    <button class="mini" id="soundTest" type="button">音を確認</button>
+    <label class="sound"><input type="checkbox" id="sound" checked>鐘の音を鳴らす</label>
+  </div>
+</div>
+</div>
+
+<section class="calc">
+  <h1>観砲頂角</h1>
+  <div class="formula">
+    <input id="k1" type="text" inputmode="decimal" placeholder="M-TAz">
+    <span>−</span>
+    <input id="k2" type="text" inputmode="decimal" placeholder="O-TAz">
+    <span>=</span>
+  </div>
+  <div class="ans"><span class="lbl">観砲頂角</span><span class="val" id="ka">–</span></div>
+</section>
+
+<section class="calc">
+  <h1>QPER</h1>
+  <div class="formula">
+    <span class="frac"><input id="q1" type="text" inputmode="decimal" placeholder="観砲頂角"><span class="bar"></span><span class="fix">100</span></span>
+    <span>×</span>
+    <span class="frac"><input id="q2" type="text" inputmode="decimal" placeholder="M-TRn"><span class="bar"></span><input id="q3" type="text" inputmode="decimal" placeholder="O-TRn"></span>
+    <span>=</span>
+  </div>
+  <div class="ans"><span class="lbl">QPER</span><span class="val" id="qa">–</span></div>
+</section>
+
+<section class="calc">
+  <h1>砲間隔ミル数</h1>
+  <div class="formula tight">
+    <span class="frac"><input id="m1" type="text" inputmode="decimal" placeholder="砲間隔(m)"><span class="bar"></span><input id="m2" type="text" inputmode="decimal" placeholder="O-TRn(km)"></span>
+    <span>×</span><span class="par">(</span><span class="sm">1600 −</span>
+    <span class="frac"><input id="m3" type="text" inputmode="decimal" placeholder="観砲頂角"><span class="bar"></span><span class="fix sm" style="min-width:0">1600</span></span>
+    <span class="par">)</span><span>=</span>
+  </div>
+  <div class="ans"><span class="lbl">砲間隔ミル数</span><span class="val" id="ma">–</span></div>
+</section>
+
+<section class="calc">
+  <h1>方向比（P）</h1>
+  <div class="formula">
+    <span class="frac"><input id="r1" type="text" inputmode="decimal" placeholder="O-TRn"><span class="bar"></span><input id="r2" type="text" inputmode="decimal" placeholder="M-TRn"></span>
+    <span>=</span>
+  </div>
+  <div class="ans" style="min-height:128px"><span class="lbl">方向比（P）</span><span class="val" id="ra">–</span></div>
+</section>
+
+<section class="calc">
+  <h1>特別修正の方向修正量<small>（集中・開射）</small></h1>
+  <div class="formula">
+    <span class="frac"><input id="p1" type="text" inputmode="decimal" placeholder="砲間隔（m）"><span class="bar"></span><input id="p2" type="text" inputmode="decimal" placeholder="M-TRn（km）"></span>
+    <span>=</span>
+  </div>
+  <div class="ans" style="min-height:128px"><span class="lbl">特別修正の方向修正量<br>（集中・開射）</span><span class="val" id="pa">–</span></div>
+</section>
+</div>
+
+<script>
+(function () {
+  var INTERVAL = 20000, BELLS = 3, MIN_P = 3, MAX_P = 7, PER = 7, TOTAL = PER * BELLS;
+  var dots = null;
+  var BLINK_LEAD = 5000, STROBE_LEN = 1250, MIN_F = 10, MAX_F = 55;
+  var STROBE_AT = 35000, BLINK_AT = 30000, END = 0; // フラッシュ秒数は設定で変わる（点滅はその5秒前から）
+  var flightInput = document.getElementById("flightSec");
+  var fMinus = document.getElementById("fMinus");
+  var fPlus = document.getElementById("fPlus");
+  var flightSec = 35;
+
+  function applyFlight(sec) {
+    sec = Math.round(Number(sec));
+    if (!isFinite(sec)) sec = flightSec;
+    sec = Math.max(MIN_F, Math.min(MAX_F, sec));
+    flightSec = sec;
+    STROBE_AT = sec * 1000;
+    BLINK_AT = STROBE_AT - BLINK_LEAD;
+    END = INTERVAL * (TOTAL - 1) + STROBE_AT + STROBE_LEN; // 最後の鐘のフラッシュまで
+    flightInput.value = sec;
+    try { localStorage.setItem("bellRelayFlightSec", String(sec)); } catch (e) {}
+  }
+  try {
+    var saved = localStorage.getItem("bellRelayFlightSec");
+    if (saved !== null) flightSec = Math.max(MIN_F, Math.min(MAX_F, Math.round(Number(saved)) || 35));
+  } catch (e) {}
+  applyFlight(flightSec);
+
+  var perInput = document.getElementById("perCount");
+  var pMinus = document.getElementById("pMinus");
+  var pPlus = document.getElementById("pPlus");
+
+  function showDots() {
+    if (!dots) return;
+    for (var b = 0; b < BELLS; b++) {
+      frames[b].querySelector(".dots").style.setProperty("--n", PER);
+      for (var i = 0; i < MAX_P; i++) dots[b][i].style.display = i < PER ? "" : "none";
+    }
+  }
+  function applyRings(n) {
+    n = Math.round(Number(n));
+    if (!isFinite(n)) n = PER;
+    PER = Math.max(MIN_P, Math.min(MAX_P, n));
+    TOTAL = PER * BELLS;
+    END = INTERVAL * (TOTAL - 1) + STROBE_AT + STROBE_LEN;
+    perInput.value = PER;
+    showDots();
+    if (dots) render(false); // 待機中でも「0 / ◯」をすぐ更新
+    try { localStorage.setItem("bellRelayPer", String(PER)); } catch (e) {}
+  }
+  try {
+    var savedP = localStorage.getItem("bellRelayPer");
+    if (savedP !== null) PER = Math.max(MIN_P, Math.min(MAX_P, Math.round(Number(savedP)) || 7));
+  } catch (e) {}
+  TOTAL = PER * BELLS;
+  applyFlight(flightSec);
+  applyRings(PER);
+
+  flightInput.addEventListener("change", function () { applyFlight(flightInput.value); });
+  perInput.addEventListener("change", function () { applyRings(perInput.value); });
+  function bindStep(btn, delta, get, apply) {
+    var hold = null, rep = null;
+    function stop() { clearTimeout(hold); clearInterval(rep); }
+    btn.addEventListener("pointerdown", function (ev) {
+      if (btn.disabled) return;
+      ev.preventDefault();
+      apply(get() + delta);
+      stop();
+      hold = setTimeout(function () { rep = setInterval(function () { apply(get() + delta); }, 70); }, 400);
+    });
+    ["pointerup", "pointerleave", "pointercancel"].forEach(function (n) { btn.addEventListener(n, stop); });
+    btn.addEventListener("click", function (ev) { if (ev.detail === 0 && !btn.disabled) apply(get() + delta); }); // キーボード操作
+  }
+  var getF = function () { return flightSec; }, getP = function () { return PER; };
+  bindStep(fMinus, -1, getF, applyFlight);
+  bindStep(fPlus, 1, getF, applyFlight);
+  bindStep(pMinus, -1, getP, applyRings);
+  bindStep(pPlus, 1, getP, applyRings);
+  var COLORS = ["var(--c1)", "var(--c2)", "var(--c3)"];
+  var PITCH = [1318.5, 1661.2, 1975.5]; // E6 / G#6 / B6（チーンと高めに鳴る音程）
+  var NS = "http://www.w3.org/2000/svg";
+
+  var framesEl = document.getElementById("frames");
+  var timeEl = document.getElementById("time");
+  var statusEl = document.getElementById("status");
+  var nextEl = document.getElementById("next");
+  var startBtn = document.getElementById("start");
+  var pauseBtn = document.getElementById("pause");
+  var resetBtn = document.getElementById("reset");
+  var soundEl = document.getElementById("sound");
+  var secHand = document.getElementById("secHand");
+  var minHand = document.getElementById("minHand");
+
+  // 文字盤の目盛り
+  var ticks = document.getElementById("ticks");
+  for (var t = 0; t < 60; t++) {
+    var major = t % 5 === 0;
+    var l = document.createElementNS(NS, "line");
+    l.setAttribute("x1", 50); l.setAttribute("x2", 50);
+    l.setAttribute("y1", 6); l.setAttribute("y2", major ? 14 : 10);
+    l.setAttribute("stroke-width", major ? 2.2 : 1);
+    l.setAttribute("transform", "rotate(" + t * 6 + " 50 50)");
+    ticks.appendChild(l);
+  }
+
+  var frames = [], counts = [], cds = [];
+  dots = [];
+  for (var b = 0; b < BELLS; b++) {
+    var f = document.createElement("section");
+    f.className = "frame b" + (b + 1);
+    f.innerHTML = '<div class="row"><span class="name">#' + (b + 1) + '</span><span class="cd"></span><span class="count">0 / ' + PER + '</span></div><div class="dots"></div>';
+    var dl = f.querySelector(".dots"), ds = [];
+    for (var i = 0; i < MAX_P; i++) {
+      var d = document.createElement("span");
+      d.className = "dot";
+      dl.appendChild(d);
+      ds.push(d);
+    }
+    framesEl.appendChild(f);
+    frames.push(f); dots.push(ds); counts.push(f.querySelector(".count")); cds.push(f.querySelector(".cd"));
+  }
+
+  frames.forEach(function (f) {
+    f.addEventListener("animationend", function (ev) {
+      if (ev.animationName === "flash") f.classList.remove("flash");
+    });
+  });
+
+  showDots();
+
+  var running = false, started = false, acc = 0, startedAt = 0, lastRings = 0, raf = 0, timer = null, ctx = null;
+
+  function elapsed() {
+    var e = acc + (running ? performance.now() - startedAt : 0);
+    return Math.min(e, END);
+  }
+
+  // 開始と同時に1回目が鳴る → 経過 0秒で1、20秒で2 …
+  function ringsAt(e) {
+    return started ? Math.min(TOTAL, Math.floor(e / INTERVAL) + 1) : 0;
+  }
+
+  function fmt(ms) {
+    var cs = Math.floor(ms / 10);
+    var m = Math.floor(cs / 6000);
+    var s = Math.floor((cs % 6000) / 100);
+    var h = cs % 100;
+    return m + ":" + String(s).padStart(2, "0") + "." + String(h).padStart(2, "0");
+  }
+
+  // iPhoneのマナーモード（消音スイッチ）でも鳴るよう、再生用のオーディオ設定にして音声を有効化する
+  var silentEl = null;
+  function silentWavUrl() {
+    var n = 800, b = new Uint8Array(44 + n), dv = new DataView(b.buffer);
+    function s(o, t) { for (var i = 0; i < t.length; i++) b[o + i] = t.charCodeAt(i); }
+    s(0, "RIFF"); dv.setUint32(4, 36 + n, true); s(8, "WAVEfmt "); dv.setUint32(16, 16, true);
+    dv.setUint16(20, 1, true); dv.setUint16(22, 1, true); dv.setUint32(24, 8000, true); dv.setUint32(28, 8000, true);
+    dv.setUint16(32, 1, true); dv.setUint16(34, 8, true); s(36, "data"); dv.setUint32(40, n, true);
+    for (var i = 0; i < n; i++) b[44 + i] = 128;
+    var bin = ""; for (var j = 0; j < b.length; j++) bin += String.fromCharCode(b[j]);
+    return "data:audio/wav;base64," + btoa(bin);
+  }
+  function unlockAudio() {
+    try { if (navigator.audioSession) navigator.audioSession.type = "playback"; } catch (e) {}
+    try {
+      if (!silentEl) { silentEl = new Audio(silentWavUrl()); silentEl.loop = true; silentEl.setAttribute("playsinline", ""); }
+      var pr = silentEl.play(); if (pr && pr.catch) pr.catch(function () {});
+    } catch (e) {}
+    try {
+      if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+      if (ctx.state === "suspended") ctx.resume();
+    } catch (e) {}
+  }
+
+  function bell(b) {
+    if (!soundEl.checked) return;
+    try {
+      if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+      if (ctx.state === "suspended") ctx.resume();
+      var t = ctx.currentTime, base = PITCH[b];
+      var master = ctx.createGain();
+      master.gain.value = 0.6;
+      master.connect(ctx.destination);
+      // 「チ」… 叩いた瞬間のカッという高い音
+      var nlen = Math.floor(ctx.sampleRate * 0.03);
+      var nb = ctx.createBuffer(1, nlen, ctx.sampleRate), nd = nb.getChannelData(0);
+      for (var k = 0; k < nlen; k++) nd[k] = (Math.random() * 2 - 1) * Math.pow(1 - k / nlen, 3);
+      var ns = ctx.createBufferSource(), hp = ctx.createBiquadFilter(), ng = ctx.createGain();
+      ns.buffer = nb; hp.type = "highpass"; hp.frequency.value = 3500; ng.gain.value = 0.3;
+      ns.connect(hp); hp.connect(ng); ng.connect(master);
+      ns.start(t);
+      // 「ーン」… 金属の長い余韻（わずかにずらした音でうなりを出す）
+      var partials = [[1, 0.4, 5.2], [1.004, 0.3, 4.8], [2.76, 0.18, 3.0], [5.4, 0.09, 1.6], [8.9, 0.04, 0.8]];
+      partials.forEach(function (p) {
+        var o = ctx.createOscillator(), g = ctx.createGain();
+        o.type = "sine";
+        o.frequency.value = base * p[0];
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(p[1], t + 0.003);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + p[2]);
+        o.connect(g); g.connect(master);
+        o.start(t); o.stop(t + p[2] + 0.05);
+      });
+    } catch (e) {}
+  }
+
+  function flash(b) {
+    var f = frames[b];
+    f.classList.remove("flash");
+    void f.offsetWidth;
+    f.classList.add("flash");
+  }
+
+  function render(rung) {
+    var locked = running || (started && acc >= END);
+    if (flightInput.disabled !== locked) flightInput.disabled = fMinus.disabled = fPlus.disabled = locked;
+    if (perInput.disabled !== started) perInput.disabled = pMinus.disabled = pPlus.disabled = started;
+    var e = elapsed();
+    var rings = ringsAt(e);
+    document.body.classList.toggle("paused", !running);
+    timeEl.textContent = fmt(e);
+    secHand.setAttribute("transform", "rotate(" + ((e / 1000) % 60) * 6 + " 50 50)");
+    minHand.setAttribute("transform", "rotate(" + (e / 60000) * 6 + " 50 50)");
+
+    for (var b = 0; b < BELLS; b++) {
+      var n = Math.max(0, Math.floor((rings - b + 2) / BELLS));
+      counts[b].textContent = n + " / " + PER;
+      for (var i = 0; i < MAX_P; i++) {
+        var on = i < n;
+        var d = dots[b][i];
+        if (on && !d.classList.contains("on")) {
+          d.classList.add("on");
+          if (rung) { d.classList.remove("pop"); void d.offsetWidth; d.classList.add("pop"); }
+        } else if (!on && d.classList.contains("on")) {
+          d.classList.remove("on", "pop");
+        }
+      }
+      var k = rings - 1;
+      while (k >= 0 && k % BELLS !== b) k--;
+      var dt = k >= 0 ? e - k * INTERVAL : -1;
+      var mode = dt >= BLINK_AT && dt < STROBE_AT ? "blink"
+               : dt >= STROBE_AT && dt < STROBE_AT + STROBE_LEN ? "strobe" : "";
+      var cdText = mode === "blink" ? String(Math.ceil((STROBE_AT - dt) / 1000)) : "";
+      if (cds[b].textContent !== cdText) cds[b].textContent = cdText;
+      if (mode) frames[b].classList.remove("flash");
+      frames[b].classList.toggle("blink", mode === "blink");
+      frames[b].classList.toggle("strobe", mode === "strobe");
+      frames[b].classList.toggle("done", n === PER);
+      frames[b].classList.toggle("next-up", rings < TOTAL && rings % BELLS === b);
+    }
+
+    if (rings === 0) {
+      nextEl.textContent = "開始と同時に #1 が鳴ります";
+      nextEl.style.color = COLORS[0];
+    } else if (rings < TOTAL) {
+      var left = Math.ceil((rings * INTERVAL - e) / 1000);
+      nextEl.textContent = "次は #" + (rings % BELLS + 1) + "　あと " + left + " 秒";
+      nextEl.style.color = COLORS[rings % BELLS];
+    } else {
+      nextEl.textContent = "";
+    }
+  }
+
+  function tick() {
+    var e = elapsed();
+    var rings = ringsAt(e);
+    var rung = false;
+    if (rings > lastRings) {
+      var b = (rings - 1) % BELLS;
+      rung = true;
+      bell(b);
+      flash(b);
+      lastRings = rings;
+    }
+    render(rung);
+    if (running && e >= END) finish();
+  }
+
+  function loop() {
+    if (!running) return;
+    tick();
+    raf = requestAnimationFrame(loop);
+  }
+
+  function stopLoops() {
+    clearInterval(timer);
+    cancelAnimationFrame(raf);
+  }
+
+  function finish() {
+    running = false;
+    acc = END;
+    stopLoops();
+    statusEl.textContent = "完了";
+    startBtn.disabled = true;
+    pauseBtn.disabled = true;
+    render(false);
+  }
+
+  startBtn.addEventListener("click", function () {
+    if (running) return;
+    unlockAudio();
+    running = true;
+    started = true;
+    startedAt = performance.now();
+    statusEl.textContent = "実行中";
+    startBtn.disabled = true;
+    pauseBtn.disabled = false;
+    stopLoops();
+    timer = setInterval(tick, 20); // 画面が隠れても鐘を逃さない
+    raf = requestAnimationFrame(loop);
+    tick();
+  });
+
+  pauseBtn.addEventListener("click", function () {
+    if (!running) return;
+    acc += performance.now() - startedAt;
+    running = false;
+    stopLoops();
+    statusEl.textContent = "一時停止中";
+    startBtn.textContent = "再開";
+    startBtn.disabled = false;
+    pauseBtn.disabled = true;
+    render(false);
+  });
+
+  resetBtn.addEventListener("click", function () {
+    running = false; started = false; acc = 0; lastRings = 0;
+    stopLoops();
+    statusEl.textContent = "待機中";
+    startBtn.textContent = "開始";
+    startBtn.disabled = false;
+    pauseBtn.disabled = true;
+    frames.forEach(function (f) { f.classList.remove("flash"); });
+    render(false);
+  });
+
+  var memo = document.getElementById("memo");
+  try { memo.value = localStorage.getItem("bellRelayMemo") || ""; } catch (e) {}
+  memo.addEventListener("input", function () {
+    try { localStorage.setItem("bellRelayMemo", memo.value); } catch (e) {}
+  });
+  memo.addEventListener("keydown", function (ev) { if (ev.key === "Enter") memo.blur(); });
+
+  document.getElementById("soundTest").addEventListener("click", function () {
+    unlockAudio();
+    var p = ctx && ctx.resume ? ctx.resume() : null;
+    if (p && p.then) p.then(function () { bell(0); }, function () { bell(0); }); else bell(0);
+  });
+
+  render(false);
+})();
+
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var num = function (id) { var v = $(id).value.trim().replace(/,/g, ''); return v === '' ? NaN : Number(v); };
+  var fmtC = function (v) { return isFinite(v) ? String(Math.round(v * 10000) / 10000) : '–'; };
+  function calc() {
+    $('ka').textContent = fmtC(Math.abs(num('k1') - num('k2')));
+    $('qa').textContent = fmtC(num('q1') / 100 * num('q2') / num('q3'));
+    $('ma').textContent = fmtC(num('m1') / num('m2') * (1600 - num('m3') / 1600));
+    $('pa').textContent = fmtC(num('p1') / num('p2'));
+    $('ra').textContent = fmtC(num('r1') / num('r2'));
+  }
+  [].forEach.call(document.querySelectorAll('.calc input'), function (i) { i.addEventListener('input', calc); });
+
+  // 観砏頂角の答えを QPER と砂間隔ミル数の「観砏頂角」欄に自動入力する
+  var lastAuto = '';
+  function sendToQper() {
+    var v = Math.abs(num('k1') - num('k2'));
+    var targets = [$('q1'), $('m3')];
+    if (isFinite(v)) {
+      lastAuto = String(Math.round(v * 10000) / 10000);
+      targets.forEach(function (t) { t.value = lastAuto; });
+    } else {
+      targets.forEach(function (t) { if (t.value === lastAuto) t.value = ''; });
+      lastAuto = '';
+    }
+    calc();
+  }
+  $('k1').addEventListener('input', sendToQper);
+  $('k2').addEventListener('input', sendToQper);
+
+  // 画面切り替え（鐘リレー → 計算ツール）のページ印
+  var sc = $('sc'), pager = $('pager');
+  var screens = [$('s0')].concat([].slice.call(document.querySelectorAll('.calc')));
+  var btns = screens.map(function (el, i) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.setAttribute('aria-label', (i + 1) + '番目の画面');
+    b.addEventListener('click', function () { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+    pager.appendChild(b);
+    return b;
+  });
+  function mark() {
+    var y = sc.scrollTop + sc.clientHeight / 2, idx = 0;
+    screens.forEach(function (el, i) { if (el.offsetTop <= y) idx = i; });
+    btns.forEach(function (b, j) { b.classList.toggle('on', j === idx); });
+  }
+  sc.addEventListener('scroll', mark, { passive: true });
+  mark();
+})();
+</script>
+</body>
+</html>
